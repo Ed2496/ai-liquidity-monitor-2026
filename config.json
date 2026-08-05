@@ -1,0 +1,10 @@
+{
+  "_說明": "可手動覆蓋任何維度的分數(0,5,10)。刪除或設為null則使用自動抓取。",
+  "dim1_override": null,
+  "dim2_override": null,
+  "dim3_override": null,
+  "dim4_override": null,
+  "dim5_override": null,
+  "_sync_說明": "sync_dirs: 每次執行後把 data/history.csv,jsonl + index.html + history.html 複製到這些資料夾。填 Google Drive Desktop 的同步夾即可自動上雲+離線快取。Windows 路徑用正斜線或雙反斜線。留空陣列=不同步。",
+  "sync_dirs": []
+}

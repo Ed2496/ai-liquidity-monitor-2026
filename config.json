@@ -1,0 +1,8 @@
+{
+  "_說明": "可手動覆蓋任何維度的分數(0,5,10)。刪除或設為null則使用自動抓取。",
+  "dim1_override": null,
+  "dim2_override": null,
+  "dim3_override": null,
+  "dim4_override": null,
+  "dim5_override": null
+}

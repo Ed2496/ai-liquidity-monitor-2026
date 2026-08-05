@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 AI 流動性壓力測試指標 — 自動監控儀表板</title>
+<style>
+  :root {
+    --bg:#ffffff; --text:#1a1a1a; --text-secondary:#555555; --border:#d0d0d0;
+    --accent:#1e3a5f; --accent-light:#e8f0fe; --danger:#c62828; --danger-bg:#ffebee;
+    --warn:#f9a825; --warn-bg:#fffde7; --safe:#2e7d32; --safe-bg:#e8f5e9;
+    --stage1:#5c6bc0; --stage2:#7e57c2; --stage3:#d32f2f; --stage4:#ef6c00;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.7;
+    padding:24px; max-width:1100px; margin:0 auto;
+  }
+  h1 { font-size:28px; font-weight:700; color:var(--accent); margin-bottom:4px; letter-spacing:-0.5px; }
+  .subtitle { font-size:15px; color:var(--text-secondary); margin-bottom:24px; }
+  .update-time { font-size:13px; color:var(--text-secondary); margin-bottom:16px; text-align:right; }
+  .score-board {
+    background:var(--accent-light); border:2px solid var(--accent); border-radius:12px;
+    padding:24px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+  }
+  .score-circle-wrap { text-align:center; min-width:140px; }
+  .score-circle {
+    width:120px; height:120px; border-radius:50%; border:6px solid var(--border);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    margin:0 auto 8px; transition:all 0.4s ease; background:#fff;
+  }
+  .score-num { font-size:36px; font-weight:800; line-height:1; }
+  .score-label { font-size:13px; color:var(--text-secondary); margin-top:4px; }
+  .status-badge {
+    display:inline-block; padding:10px 24px; border-radius:8px;
+    font-size:20px; font-weight:700; letter-spacing:1px; transition:all 0.3s ease;
+  }
+  .status-exit { background:var(--danger-bg); color:var(--danger); border:2px solid var(--danger); }
+  .status-watch { background:var(--warn-bg); color:#5d4037; border:2px solid var(--warn); }
+  .status-enter { background:var(--safe-bg); color:var(--safe); border:2px solid var(--safe); }
+  .status-detail { font-size:15px; color:var(--text-secondary); margin-top:8px; max-width:500px; }
+  .section-title {
+    font-size:20px; font-weight:700; color:var(--accent);
+    margin:32px 0 16px; padding-bottom:8px; border-bottom:2px solid var(--accent-light);
+  }
+  .dim-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; margin-bottom:24px; }
+  .dim-card {
+    border:1px solid var(--border); border-radius:10px; padding:16px; background:#fafafa; transition:box-shadow 0.2s;
+  }
+  .dim-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+  .dim-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .dim-name { font-size:16px; font-weight:700; color:var(--accent); }
+  .dim-weight { font-size:13px; color:var(--text-secondary); background:#e0e0e0; padding:2px 8px; border-radius:4px; }
+  .dim-indicator { font-size:14px; color:var(--text-secondary); margin-bottom:10px; }
+  .dim-raw { font-size:13px; color:var(--danger); font-weight:600; margin-bottom:8px; }
+  .dim-select {
+    width:100%; padding:10px 12px; font-size:15px;
+    border:1px solid var(--border); border-radius:6px; background:#fff; color:var(--text); cursor:pointer;
+  }
+  .dim-score { text-align:right; font-size:14px; font-weight:700; margin-top:8px; color:var(--text-secondary); }
+  .action-box { margin-top:24px; padding:20px; border-radius:10px; border:2px solid; font-size:15px; }
+  .action-exit { background:var(--danger-bg); border-color:var(--danger); }
+  .action-watch { background:var(--warn-bg); border-color:var(--warn); }
+  .action-enter { background:var(--safe-bg); border-color:var(--safe); }
+  .footer-note {
+    margin-top:32px; padding-top:16px; border-top:1px solid var(--border);
+    font-size:13px; color:var(--text-secondary); text-align:center;
+  }
+  .highlight { background:#fff9c4; padding:0 4px; font-weight:600; }
+  .note-box {
+    background:#fffde7; border:1px solid var(--warn); border-radius:8px;
+    padding:12px 16px; font-size:14px; color:#5d4037; margin-bottom:20px;
+  }
+  @media (max-width:600px) {
+    body { padding:16px; }
+    h1 { font-size:22px; }
+    .score-board { flex-direction:column; text-align:center; }
+  }
+</style>
+</head>
+<body>
+
+<h1>2026 AI 流動性壓力測試指標</h1>
+<p class="subtitle">穿境者監控儀表板（Channel Fault Line Monitor）— 基於五維度加權計分</p>
+<div class="update-time">數據自動更新時間：2026-08-05 03:10:44（UTC+8）</div>
+
+<div class="note-box">
+  <strong>⚠️ 自動化聲明（資料層已校準 2026-08-05）：</strong>維度 1–4 來自 FRED / Yahoo Finance 自動抓取。
+  已修正：HY利差單位(百分比×100→bps)、REIT ticker(移除已成藥廠的 COR，改 DLR/EQIX/IRM)、
+  殖利率改 TTM實配息/現價、SOFR跳升改真實變化量。
+  <strong>維度 5（地緣防火牆）</strong>因 SGE/LBMA 無穩定免費 API，以「CNH離岸人民幣波動率」為替代指標(標 PROXY)。
+  請每日手動核對真實 SGE/LBMA 價差，並在 <code>config.json</code> 的 <code>dim5_override</code> 覆蓋分數。
+  <strong>每格右側徽章顯示該數字是 LIVE 真數據還是 FALLBACK 預設值。</strong>
+</div>
+
+<div class="score-board">
+  <div class="score-circle-wrap">
+    <div class="score-circle" id="scoreCircle" style="border-color:#2e7d32">
+      <div class="score-num" id="totalScore">38</div>
+      <div class="score-label">壓力總分</div>
+    </div>
+  </div>
+  <div style="flex:1; min-width:260px;">
+    <div class="status-badge status-watch" id="statusBadge">🟡 預備觀察</div>
+    <div class="status-detail" id="statusDetail">總分雖低（< 30），但維度 4（REITs 利差）尚未達到 >3% 的強烈買進訊號。繼續等待實體資產被錯殺的時機。</div>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 16px;background:#fafafa;">
+    <div style="font-size:13px;color:var(--text-secondary);">VIX 恐慌指數（context，不計分）<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <div style="font-size:24px;font-weight:800;color:#2e7d32;">N/A</div>
+    <div style="font-size:12px;color:var(--text-secondary);">決策樹閘門：突破 35 後回落 → 觀察維度4進場時機</div>
+  </div>
+  <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 16px;background:#fafafa;">
+    <div style="font-size:13px;color:var(--text-secondary);">實體基建利差（REIT殖利率 − 10Y公債）</div>
+    <div style="font-size:24px;font-weight:800;color:var(--accent);">1.30%</div>
+    <div style="font-size:12px;color:var(--text-secondary);">&gt;3% = 強烈買進訊號（維度4 進場閘門）</div>
+  </div>
+</div>
+
+<div class="section-title">一、五維度壓力評分（滿分 100）</div>
+<div class="dim-grid">
+
+  <div class="dim-card">
+    <div class="dim-header">
+      <span class="dim-name">1. 資金成本</span>
+      <span class="dim-weight">權重 20%</span>
+    </div>
+    <div class="dim-indicator">美國 10 年期國債收益率 + SOFR</div>
+    <div class="dim-raw">自動抓取：DGS10=4.20% / SOFR=5.33% / SOFR跳升=N/A%<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <select class="dim-select" id="d1" onchange="calc()">
+      <option value="0" >正常：&lt; 4.0%（0 分）</option>
+      <option value="5" selected>警戒：4.0% - 4.5%（+5 分）</option>
+      <option value="10" >極度壓力：&gt; 4.5% 且 SOFR 跳升 &gt; 0.5%（+10 分）</option>
+    </select>
+    <div class="dim-score">加權得分：<span id="s1">10</span> / 20</div>
+  </div>
+
+  <div class="dim-card">
+    <div class="dim-header">
+      <span class="dim-name">2. 利差崩潰預警</span>
+      <span class="dim-weight">權重 25%</span>
+    </div>
+    <div class="dim-indicator">高收益債 (HY) vs 公債利差；AI 公司債 CDS</div>
+    <div class="dim-raw">自動抓取：HY Spread=350.0 bps（FRED 百分比×100 已修正）<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <select class="dim-select" id="d2" onchange="calc()">
+      <option value="0" selected>正常：&lt; 400 bps（0 分）</option>
+      <option value="5" >警戒：400 - 600 bps（+5 分）</option>
+      <option value="10" >極度壓力：&gt; 600 bps（+10 分）</option>
+    </select>
+    <div class="dim-score">加權得分：<span id="s2">0</span> / 25</div>
+  </div>
+
+  <div class="dim-card">
+    <div class="dim-header">
+      <span class="dim-name">3. 日圓套利解除壓力</span>
+      <span class="dim-weight">權重 15%</span>
+    </div>
+    <div class="dim-indicator">美元/日圓 (USD/JPY) 30 日波動率</div>
+    <div class="dim-raw">自動抓取：30日已實現波動率(年化)=12.00%<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <select class="dim-select" id="d3" onchange="calc()">
+      <option value="0" >正常：&lt; 10%（0 分）</option>
+      <option value="5" selected>警戒：10% - 18%（+5 分）</option>
+      <option value="10" >極度壓力：&gt; 18%（+10 分）</option>
+    </select>
+    <div class="dim-score">加權得分：<span id="s3">8</span> / 15</div>
+  </div>
+
+  <div class="dim-card">
+    <div class="dim-header">
+      <span class="dim-name">4. 實體基建「錯殺」機會</span>
+      <span class="dim-weight">權重 25%</span>
+    </div>
+    <div class="dim-indicator">資料中心 REITs 殖利率 vs 10 年期公債利差</div>
+    <div class="dim-raw">自動抓取：REITs平均殖利率=5.50%（DLR,EQIX,IRM）/ 利差=1.30%<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <div style="font-size:12px;color:#c62828;background:#ffebee;border:1px solid #c62828;border-radius:6px;padding:6px 10px;margin-bottom:8px;">⚠️ 方向性斷層：本維度是「買點越強分數越高」，卻被加進「分數越高越該賣」的總分。買訊號(+10)會把總分推向離場，與它要觸發的「總分&lt;30進場」閘門相衝。此為 DeepSeek 原始計分卡的結構，已保留未改——是否把本維度拆成獨立「機會軸」不進總分，坍縮權在你。</div>
+    <select class="dim-select" id="d4" onchange="calc()">
+      <option value="0" >正常：&lt; 1%（0 分）</option>
+      <option value="5" selected>警戒：1% - 2.5%（+5 分）</option>
+      <option value="10" >強烈買進訊號：&gt; 3%（+10 分）</option>
+    </select>
+    <div class="dim-score">加權得分：<span id="s4">12</span> / 25</div>
+  </div>
+
+  <div class="dim-card">
+    <div class="dim-header">
+      <span class="dim-name">5. 地緣防火牆（中國變數）</span>
+      <span class="dim-weight">權重 15%</span>
+    </div>
+    <div class="dim-indicator">上海金 (SGE) vs 倫敦金 (LBMA) 價差</div>
+    <div class="dim-raw">自動抓取：CNH離岸30日波動率(年化)=4.00%（非真 SGE/LBMA 價差，替代指標）<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;margin-left:6px;vertical-align:middle;">FALLBACK</span></div>
+    <select class="dim-select" id="d5" onchange="calc()">
+      <option value="0" >正常：&lt; 2%（0 分）</option>
+      <option value="5" selected>警戒：2% - 8%（+5 分）</option>
+      <option value="10" >極度壓力：&gt; 8%（+10 分）</option>
+    </select>
+    <div class="dim-score">加權得分：<span id="s5">8</span> / 15</div>
+  </div>
+
+</div>
+
+<div class="section-title">資料源健康檢查（裸投檢查）</div><div style="background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:8px;"><div style="font-size:14px;margin-bottom:10px;">即時抓取 <strong style="color:#2e7d32;">0/7</strong> 項為 LIVE；手動覆蓋 <strong style="color:#1565c0;">0</strong> 個維度。FALLBACK=落回預設值(未設 FRED_API_KEY 或抓取失敗)，該格數字不可當真數據；PROXY=替代指標(非目標本尊)；OVERRIDE=你在 config.json 手動指定。</div><table style="width:100%;border-collapse:collapse;font-size:14px;"><tr style="color:#555;font-size:12px;"><td style="padding:6px 10px;">指標</td><td style="padding:6px 10px;">來源</td><td style="padding:6px 10px;text-align:right;">狀態</td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">DGS10（10Y公債）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">FRED</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">SOFR（隔夜利率）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">FRED</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">HY 利差（BAMLH0A0HYM2, ×100→bps）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">FRED</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">USD/JPY 波動率</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">Yahoo Finance</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">資料中心 REIT 殖利率（DLR,EQIX,IRM）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">Yahoo Finance</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">CNH 離岸波動率（維度5替代指標）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">Yahoo Finance</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr><tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">VIX（context, 不計分）</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#777;">Yahoo Finance</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;color:#9e9e9e;background:#f0f0f0;border:1px solid #9e9e9e;">FALLBACK</span></td></tr></table></div>
+
+<div class="action-box action-watch" id="actionBox">
+  <strong style="font-size:17px; display:block; margin-bottom:8px;">🟡 預備觀察</strong>
+  <div id="actionText">總分雖低，但實體基建利差尚未達到 >3% 的強烈買進訊號。持續監控資料中心 REITs 報價與 10 年期公債利差，等待黃金坑出現。</div>
+</div>
+
+<div class="section-title">二、可存檔決策樹（離場 / 觀察 / 進場）</div>
+<div style="background:#fafafa; border:1px solid var(--border); border-radius:10px; padding:20px;">
+  <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:14px; padding:12px; border-radius:8px; background:#fff; border:1px solid #e0e0e0;">
+    <div style="min-width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0;">1</div>
+    <div style="font-size:15px;">
+      <strong style="color:var(--accent);">先看「日圓（維度3）」與「高收益債（維度2）」：</strong><br>
+      若雙雙破表（總分 &gt; 60），<span class="highlight">立刻離場</span>，別想抄底。將股票/加密貨幣部位降至 20% 以下，持有短期（1-3 個月）美國國庫券（T-bills）或美元現金。
+    </div>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:14px; padding:12px; border-radius:8px; background:#fff; border:1px solid #e0e0e0;">
+    <div style="min-width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0;">2</div>
+    <div style="font-size:15px;">
+      <strong style="color:var(--accent);">等待 VIX 恐慌指數突破 35 後回落：</strong><br>
+      此時觀察「資料中心 REITs 殖利率（維度4）」。總分 40–60 分為觀察期，開始研究目標實體基建名單，確認 DSCR &gt; 1.5 倍。
+    </div>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:12px; padding:12px; border-radius:8px; background:#fff; border:1px solid #e0e0e0;">
+    <div style="min-width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0;">3</div>
+    <div style="font-size:15px;">
+      <strong style="color:var(--accent);">當 REITs 殖利率比 10 年期公債高出 3% 以上時：</strong><br>
+      總分 &lt; 30 分且維度 4 &gt; 3%，這是 2026 年唯一具備「安全邊際（Margin of Safety）」的資產類別。大膽進場承接利差最大的 REITs，或購買不良債券基金。
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">
+  終局判斷：這不是 2008 年「銀行倒閉」的瞬間凍結，而是一場「慢動作的資產所有權轉移」。<br>
+  流動性緊縮消滅的是「無現金流的槓桿投機客」，而不是「有長期租約的實體基建」。<br>
+  你的任務：當穿境資本砸出黃金坑時，替換掉他們手中的槓桿，拿走他們的實體抵押品。<br><br>
+  <strong>數據來源：</strong>FRED (DGS10, SOFR, BAMLH0A0HYM2) | Yahoo Finance (USDJPY, DLR/EQIX/IRM, CNH, ^VIX)<br>
+  <strong>自動執行：</strong>GitHub Actions 每日排程 或 Windows Task Scheduler | <strong>倉庫：</strong>請填入你的 GitHub 倉庫位址
+</div>
+
+<script>
+function calc() {
+  const w = [0.20, 0.25, 0.15, 0.25, 0.15];
+  const ids = ['d1','d2','d3','d4','d5'];
+  const sIds = ['s1','s2','s3','s4','s5'];
+  let total = 0;
+  for (let i = 0; i < 5; i++) {
+    const v = parseInt(document.getElementById(ids[i]).value);
+    const weighted = Math.round(v * w[i] * 10);  // FIX-6: ×10 對齊 100 分刻度
+    document.getElementById(sIds[i]).textContent = weighted;
+    total += weighted;
+  }
+  document.getElementById('totalScore').textContent = total;
+  const circle = document.getElementById('scoreCircle');
+  const badge = document.getElementById('statusBadge');
+  const detail = document.getElementById('statusDetail');
+  const box = document.getElementById('actionBox');
+  const actText = document.getElementById('actionText');
+  const d4Val = parseInt(document.getElementById('d4').value);
+  let borderColor = '#d0d0d0';
+  if (total > 60) borderColor = '#c62828';
+  else if (total >= 40) borderColor = '#f9a825';
+  else borderColor = '#2e7d32';
+  circle.style.borderColor = borderColor;
+  if (total > 60) {
+    badge.className = 'status-badge status-exit'; badge.textContent = '🚨 離場訊號';
+    detail.textContent = '總分 > 60 分。維度2（高收益利差）與維度3（日圓波動）同時爆表，穿境資本正在瘋狂平倉，市場進入「無差別拋售」階段。此時不要接刀，最深的「實體資產法拍」尚未到來。';
+    box.className = 'action-box action-exit';
+    actText.innerHTML = '<strong style="font-size:17px; display:block; margin-bottom:8px;">🚨 離場行動</strong>將股票/加密貨幣部位降至 20% 以下，持有短期（1-3 個月）美國國庫券（T-bills）或美元現金。等待市場恐慌進一步釋放。';
+  } else if (total >= 40) {
+    badge.className = 'status-badge status-watch'; badge.textContent = '🟡 觀察期';
+    detail.textContent = '總分 40–60 分。開始研究「目標實體基建名單」，確認現金流覆蓋倍數（DSCR）> 1.5 倍，為進場做準備。';
+    box.className = 'action-box action-watch';
+    actText.innerHTML = '<strong style="font-size:17px; display:block; margin-bottom:8px;">🟡 觀察期行動</strong>開始研究「目標實體基建名單」（特定資料中心 REITs、擁有長期電力合約的發電廠、已出租給 AWS/Microsoft 的機房開發商）。<br><br><strong>關鍵動作：</strong>確認目標公司的「現金流覆蓋倍數（DSCR）」是否大於 1.5 倍。若大於，代表即使經濟衰退，仍有現金還債，不會倒閉。';
+  } else {
+    if (d4Val >= 10) {
+      badge.className = 'status-badge status-enter'; badge.textContent = '🟢 進場訊號';
+      detail.textContent = '總分 < 30 分，且維度 4（REITs 利差）> 3%。實體基建的租金回報率已遠遠超過借貸成本，這是 2026 年唯一具備「安全邊際」的資產類別。';
+      box.className = 'action-box action-enter';
+      actText.innerHTML = '<strong style="font-size:17px; display:block; margin-bottom:8px;">🟢 進場行動（反市場時刻）</strong>大膽進場承接「維度 4」中利差最大的 REITs，或購買擁有大量資料中心抵押品的「不良債券基金（Distressed Debt Fund）」。<br><br>歷史對照：這就像 1988 年 KKR 眼中的 RJR 菸草公司——股價雖跌，但香菸（算力）仍在每天生產現金流。只要確定租約（合約）是長期的，它就是「被錯殺的現金奶牛」。';
+    } else {
+      badge.className = 'status-badge status-watch'; badge.textContent = '🟡 預備觀察';
+      detail.textContent = '總分雖低（< 30），但維度 4（REITs 利差）尚未達到 >3% 的強烈買進訊號。繼續等待實體資產被錯殺的時機。';
+      box.className = 'action-box action-watch';
+      actText.innerHTML = '<strong style="font-size:17px; display:block; margin-bottom:8px;">🟡 預備觀察</strong>總分雖低，但實體基建利差尚未達到 >3% 的強烈買進訊號。持續監控資料中心 REITs 報價與 10 年期公債利差，等待黃金坑出現。';
+    }
+  }
+}
+</script>
+
+</body>
+</html>
